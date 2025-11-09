@@ -1,0 +1,42 @@
+name: Azure WIF KeyVault Demo
+
+on:
+  push:
+    branches: [ "main" ]   # This must match what you configure in Azure WIF
+
+permissions:
+  id-token: write          # REQUIRED for GitHub → Azure OIDC
+  contents: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      # 1) Request an OIDC token from GitHub (audience MUST be api://AzureADTokenExchange)
+      - name: Acquire GitHub OIDC token
+        id: oidc
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const token = await core.getIDToken("api://AzureADTokenExchange");
+            require("fs").writeFileSync("federated-token.jwt", token);
+
+      # 2) Set environment variable so your Java program can read the file
+      - name: Export federated token file path
+        run: echo "AZURE_FEDERATED_TOKEN_FILE=$GITHUB_WORKSPACE/federated-token.jwt" >> $GITHUB_ENV
+
+      # 3) Run your Java JAR (replace with the actual JAR filename)
+      - name: Run WIF Java program
+        run: |
+          echo "Using federated token: $AZURE_FEDERATED_TOKEN_FILE"
+          java -jar azure-0.0.1-SNAPSHOT.jar
